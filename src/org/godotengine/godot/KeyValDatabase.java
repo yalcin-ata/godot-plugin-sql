@@ -1,4 +1,3 @@
-
 package org.godotengine.godot;
 
 import android.content.ContentValues;
@@ -14,172 +13,179 @@ import java.util.List;
 
 public class KeyValDatabase {
 
-	public KeyValDatabase(Context context) {
-		mDatabaseHelper = new DatabaseHelper(context);
-		mStoreDB = mDatabaseHelper.getWritableDatabase();
-	}
+    public static final String KEYVAL_COLUMN_KEY = "key";
+    public static final String KEYVAL_COLUMN_VAL = "val";
+    private static final String KEYVAL_TABLE_NAME = "kv_store";
+    public static final String CREATE_TABLE_KEYVAL = "CREATE TABLE IF NOT EXISTS "
+            + KEYVAL_TABLE_NAME + "(" + KEYVAL_COLUMN_KEY + " TEXT PRIMARY KEY, "
+            + KEYVAL_COLUMN_VAL + " TEXT)";
+    private static final String[] KEYVAL_COLUMNS = {KEYVAL_COLUMN_KEY, KEYVAL_COLUMN_VAL};
+    private static final String TAG = "SQLBridge";
+    private static final String DATABASE_NAME = "godot.kv.db.custom";
+    private SQLiteDatabase mStoreDB;
+    private DatabaseHelper mDatabaseHelper;
 
-	public synchronized void close() {
-		mDatabaseHelper.close();
-	}
+    public KeyValDatabase(Context context) {
+        mDatabaseHelper = new DatabaseHelper(context);
+        mStoreDB = mDatabaseHelper.getWritableDatabase();
+    }
 
-	public void purgeDatabase(Context context) {
-		context.deleteDatabase(DATABASE_NAME);
-	}
+    public synchronized void close() {
+        mDatabaseHelper.close();
+    }
 
-	public void purgeDatabaseEntries(Context context) {
-		mStoreDB.delete(KEYVAL_TABLE_NAME, null, null);
-	}
+    public void purgeDatabase(Context context) {
+        context.deleteDatabase(DATABASE_NAME);
+    }
 
-	public synchronized void setKeyVal(String key, String val) {
-		ContentValues values = new ContentValues();
-		values.put(KEYVAL_COLUMN_VAL, val);
+    public void purgeDatabaseEntries(Context context) {
+        mStoreDB.delete(KEYVAL_TABLE_NAME, null, null);
+    }
 
-		int affected = mStoreDB.update(KEYVAL_TABLE_NAME, values, KEYVAL_COLUMN_KEY + "='"
-				+ key + "'", null);
+    public synchronized void setKeyVal(String key, String val) {
+        ContentValues values = new ContentValues();
+        values.put(KEYVAL_COLUMN_VAL, val);
 
-		if (affected == 0) {
-			values.put(KEYVAL_COLUMN_KEY, key);
-			mStoreDB.replace(KEYVAL_TABLE_NAME, null, values);
-		}
-	}
+        int affected = mStoreDB.update(KEYVAL_TABLE_NAME, values, KEYVAL_COLUMN_KEY + "='"
+                + key + "'", null);
 
-	public synchronized String getKeyVal(String key) {
-		Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS,
-			KEYVAL_COLUMN_KEY + "='" + key + "'", null, null, null, null);
+        if (affected == 0) {
+            values.put(KEYVAL_COLUMN_KEY, key);
+            mStoreDB.replace(KEYVAL_TABLE_NAME, null, values);
+        }
+    }
 
-		if (cursor != null && cursor.moveToNext()) {
-			int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
-			String ret = cursor.getString(valColIdx);
-			cursor.close();
-			return ret;
-		} else { Log.i(TAG, "return Null.!"); }
+    public synchronized String getKeyVal(String key) {
+        Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS,
+                KEYVAL_COLUMN_KEY + "='" + key + "'", null, null, null, null);
 
-		if(cursor != null) { cursor.close(); }
+        if (cursor != null && cursor.moveToNext()) {
+            int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
+            String ret = cursor.getString(valColIdx);
+            cursor.close();
+            return ret;
+        } else {
+            Log.i(TAG, "return Null.!");
+        }
 
-		return null;
-	}
+        if (cursor != null) {
+            cursor.close();
+        }
 
-	public synchronized void deleteKeyVal(String key) {
-		mStoreDB.delete(KEYVAL_TABLE_NAME, KEYVAL_COLUMN_KEY + "=?", new String[] { key });
-	}
+        return null;
+    }
 
-	public synchronized HashMap<String, String> getQueryVals(String query) {
-		query = query.replace('*', '%');
-		Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS, KEYVAL_COLUMN_KEY
-								+ " LIKE '" + query + "'",
-								null, null, null, null);
+    public synchronized void deleteKeyVal(String key) {
+        mStoreDB.delete(KEYVAL_TABLE_NAME, KEYVAL_COLUMN_KEY + "=?", new String[]{key});
+    }
 
-		HashMap<String, String> ret = new HashMap<String, String>();
-		while (cursor != null && cursor.moveToNext()) {
-			try {
-				int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
-				int keyColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_KEY);
-				ret.put(cursor.getString(keyColIdx), cursor.getString(valColIdx));
-			} catch (IllegalArgumentException exx) { }
-		}
+    public synchronized HashMap<String, String> getQueryVals(String query) {
+        query = query.replace('*', '%');
+        Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS, KEYVAL_COLUMN_KEY
+                        + " LIKE '" + query + "'",
+                null, null, null, null);
 
-		if(cursor != null) { cursor.close(); }
+        HashMap<String, String> ret = new HashMap<String, String>();
+        while (cursor != null && cursor.moveToNext()) {
+            try {
+                int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
+                int keyColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_KEY);
+                ret.put(cursor.getString(keyColIdx), cursor.getString(valColIdx));
+            } catch (IllegalArgumentException exx) {
+            }
+        }
 
-		return ret;
-	}
+        if (cursor != null) {
+            cursor.close();
+        }
 
-	public synchronized String getQueryOne(String query) {
-		query = query.replace('*', '%');
-		Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS, KEYVAL_COLUMN_KEY
-								+ " LIKE '" + query + "'",
-								null, null, null, null, "1");
+        return ret;
+    }
 
-		if(cursor != null) {
-			boolean moved = cursor.moveToFirst();
-			if (moved) {
-				int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
-				String ret = cursor.getString(valColIdx);
+    public synchronized String getQueryOne(String query) {
+        query = query.replace('*', '%');
+        Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, KEYVAL_COLUMNS, KEYVAL_COLUMN_KEY
+                        + " LIKE '" + query + "'",
+                null, null, null, null, "1");
 
-				cursor.close();
+        if (cursor != null) {
+            boolean moved = cursor.moveToFirst();
+            if (moved) {
+                int valColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_VAL);
+                String ret = cursor.getString(valColIdx);
 
-				return ret;
-			}
-		}
+                cursor.close();
 
-		return null;
-	}
+                return ret;
+            }
+        }
 
-	public synchronized int getQueryCount(String query) {
-		query = query.replace('*', '%');
-		Cursor cursor = mStoreDB.rawQuery("SELECT COUNT(" + KEYVAL_COLUMN_VAL + ") from " +
-		KEYVAL_TABLE_NAME + " WHERE " + KEYVAL_COLUMN_KEY + " LIKE '" + query +"'", null);
+        return null;
+    }
 
-		if(cursor != null) {
-			boolean moved = cursor.moveToFirst();
+    public synchronized int getQueryCount(String query) {
+        query = query.replace('*', '%');
+        Cursor cursor = mStoreDB.rawQuery("SELECT COUNT(" + KEYVAL_COLUMN_VAL + ") from " +
+                KEYVAL_TABLE_NAME + " WHERE " + KEYVAL_COLUMN_KEY + " LIKE '" + query + "'", null);
 
-			if (moved) {
-				int count = cursor.getInt(0);
-				cursor.close();
+        if (cursor != null) {
+            boolean moved = cursor.moveToFirst();
 
-				return count;
-			}
-		}
+            if (moved) {
+                int count = cursor.getInt(0);
+                cursor.close();
 
-		return 0;
-	}
+                return count;
+            }
+        }
 
-	public synchronized List<String> getAllKeys() {
-		Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, new String[] { KEYVAL_COLUMN_KEY },
-								null, null, null, null, null);
+        return 0;
+    }
 
-		List<String> ret = new ArrayList<String>();
-		while (cursor != null && cursor.moveToNext()) {
+    public synchronized List<String> getAllKeys() {
+        Cursor cursor = mStoreDB.query(KEYVAL_TABLE_NAME, new String[]{KEYVAL_COLUMN_KEY},
+                null, null, null, null, null);
 
-			try {
-				int keyColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_KEY);
-				ret.add(cursor.getString(keyColIdx));
-			} catch (IllegalArgumentException exx) { }
-		}
+        List<String> ret = new ArrayList<String>();
+        while (cursor != null && cursor.moveToNext()) {
 
-		if(cursor != null) { cursor.close(); }
+            try {
+                int keyColIdx = cursor.getColumnIndexOrThrow(KEYVAL_COLUMN_KEY);
+                ret.add(cursor.getString(keyColIdx));
+            } catch (IllegalArgumentException exx) {
+            }
+        }
 
-		return ret;
-	}
+        if (cursor != null) {
+            cursor.close();
+        }
 
-	private class DatabaseHelper extends SQLiteOpenHelper {
+        return ret;
+    }
 
-		public DatabaseHelper(Context context) {
-			super(context, DATABASE_NAME, null, 1);
-		}
+    private class DatabaseHelper extends SQLiteOpenHelper {
 
-		@Override
-		public void onCreate(SQLiteDatabase sqLiteDatabase) {
-			if (!sqLiteDatabase.isReadOnly()){
-			sqLiteDatabase.execSQL("PRAGMA foreign_key=ON");
-			}
+        public DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, 1);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase sqLiteDatabase) {
+            if (!sqLiteDatabase.isReadOnly()) {
+                sqLiteDatabase.execSQL("PRAGMA foreign_key=ON");
+            }
 
 //			sqLiteDatabase.execSQL("CREATE TABLE IF NOT EXISTS " +
 //			KEYVAL_TABLE_NAME + "(" + KEYVAL_COLUMN_KEY + " TEXT PRIMARY KEY, " +
 //			KEYVAL_COLUMN_VAL + " TEXT)");
 
-			sqLiteDatabase.execSQL(CREATE_TABLE_KEYVAL);
-		}
+            sqLiteDatabase.execSQL(CREATE_TABLE_KEYVAL);
+        }
 
-		@Override
-		public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
-			// Nothing to do here ...
-		}
+        @Override
+        public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
+            // Nothing to do here ...
+        }
 
-	}
-
-	private static final String KEYVAL_TABLE_NAME = "kv_store";
-	public static final String KEYVAL_COLUMN_KEY = "key";
-	public static final String KEYVAL_COLUMN_VAL = "val";
-
-	public static final String CREATE_TABLE_KEYVAL = "CREATE TABLE IF NOT EXISTS "
-			+ KEYVAL_TABLE_NAME + "(" + KEYVAL_COLUMN_KEY + " TEXT PRIMARY KEY, "
-			+ KEYVAL_COLUMN_VAL + " TEXT)";
-
-	private static final String[] KEYVAL_COLUMNS = { KEYVAL_COLUMN_KEY, KEYVAL_COLUMN_VAL };
-
-	private static final String TAG = "SQLBridge";
-	private static final String DATABASE_NAME  = "godot.kv.db.custom";
-	private SQLiteDatabase mStoreDB;
-	private DatabaseHelper mDatabaseHelper;
+    }
 }
